@@ -1,0 +1,124 @@
+using UnityEngine;
+
+public class PlatformerMovement : MonoBehaviour
+{
+    [SerializeField] private Rigidbody2D rb;//Rigidbody2D
+    [SerializeField] public GameObject groundCheck;//Zemine değip değmediğini kontrol etmek için nesne
+    public float movementSpeed;//Karakter hızı
+    public float jumpSpeed;//Zıplama hızı
+    public int jumpCount;//Zıplama hakkı
+    [SerializeField] private int currentJumpCount;//Kalan zıplama hakkı
+    private float horizontalMove;//Yatay hareket kontrol
+    [SerializeField] private bool isFace;//Baktığı tarafı kontrol etmek için,sağa bakıyorsa false
+    [SerializeField] private bool isGround;//Yere değip değmediğini kontrol etmek için
+
+    public float dashSpeed = 1f; // Dash hızı
+    public float dashDuration = 0.5f; // Dash süresi
+
+    [SerializeField]private bool isDashing = false; // Dash yapılıyor mu?
+    [SerializeField] private bool canDash; //Yere değdiğinde dash özelliği kazanması için
+    [SerializeField]private float dashTimer = 0f; // Dash sayacı
+    private float gravity;//Dash için 
+
+
+    private void Start(){
+        rb = gameObject.GetComponent<Rigidbody2D>();
+        
+    }
+
+    private void Update(){
+        horizontalMove = Input.GetAxisRaw("Horizontal");
+        Jump();
+        Flip();
+        Dash();
+        if(isDashing==false && isGround == true)//Yere değince dash özelliği kazanır
+        {
+            canDash= true;
+        }
+    }
+
+    private void FixedUpdate(){
+        if (isDashing)//Dash yapılıyorsa hareketin çalışmasını engeller
+        {
+            return;
+        }
+        rb.velocity = new Vector2(horizontalMove * movementSpeed, rb.velocity.y);//Yatay hareket kodu
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision){//Ground tag'lı objeye değmeye başladığında isGround true olur
+        if(collision.CompareTag("Ground")){
+            isGround = true;
+        }
+    }
+
+    private void OnTriggerExit2D(Collider2D collision){//Ground tag'lı objeye değmei bıraktığında isGround false olur
+        if(collision.CompareTag("Ground")){
+            isGround = false;
+        }
+    }
+
+    public void Flip(){//Karakterin yüzünü döndürme
+        if(!isFace && horizontalMove < 0f || isFace && horizontalMove > 0f){
+            isFace = !isFace;
+            Vector3 localScale = transform.localScale;//LocalScale'i tam olrak ne yaptığını bilmiyorum ama dönerken karakterin konumunun değişmesini engelliyor olabilir.
+            localScale.x *= -1f;//Karakteri döndür
+            transform.localScale = localScale;
+        }
+    }
+
+    public void Jump()
+    {
+        if (isDashing)//Dash yapılıyorsa zıplamanın çalışmasını engeller
+        {
+            return;
+        }
+        if (isGround)//Yere değiyorsa maksimum jump hakkını kazanır
+        {
+            currentJumpCount = jumpCount;
+        }
+
+        if (Input.GetKeyDown(KeyCode.W) && currentJumpCount == jumpCount) // İlk zıplama
+        {
+            rb.AddForce(new Vector2(0f, jumpSpeed * 5f), ForceMode2D.Impulse);
+            currentJumpCount--;
+            isGround = false;
+        }
+        else if (Input.GetKeyDown(KeyCode.Q) && currentJumpCount > 0) // Sonraki zıplamalar
+        {
+            rb.AddForce(new Vector2(0f, jumpSpeed * 4f), ForceMode2D.Impulse); // 8f double jump gücünü azaltmak için
+            currentJumpCount--;
+            isGround = false;
+        }
+    }
+
+
+    public void Dash()//Buranın değiştirilmesini önerilmez
+    {
+        if (Input.GetMouseButtonDown(0) && !isDashing && canDash)
+        {
+            Vector3 mousePosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            Vector2 direction = (mousePosition - transform.position).normalized;
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;//Karakter ve mouse arasındaki açıyı hesaplar
+            float cosAngle = Mathf.Cos(angle * Mathf.Deg2Rad);
+            float sinAngle = Mathf.Sin(angle * Mathf.Deg2Rad);
+            Vector2 force = new Vector2(dashSpeed * cosAngle, dashSpeed * sinAngle);
+            isDashing = true;
+            canDash= false;
+            gravity = rb.gravityScale;//Dash sırasında yerçekimini kapatır
+            rb.gravityScale = 0f;
+            dashTimer = 0f;
+            rb.AddForce(force, ForceMode2D.Impulse);//Dash kuvveti uygular
+        }
+        if (isDashing)
+        {
+            dashTimer += Time.deltaTime;
+            if (dashTimer >= dashDuration)
+            {
+                rb.gravityScale = gravity;
+                isDashing = false;
+                dashTimer = 0f;
+            }
+        }
+    }
+
+}
