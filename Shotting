@@ -1,0 +1,81 @@
+using UnityEngine;
+
+// Makes the character fire from the firing point in the direction of the mouse.
+
+public class shotting : MonoBehaviour
+{
+    // Karakterin pozisyonunu alın
+    private Vector3 characterPosition;
+
+    // Mouse'un pozisyonunu alın
+    private Vector3 mousePosition;
+    
+    // Firing point sprite nı ekler.
+    public GameObject firingPoint;
+
+    //BulletSprite ı tanımlama
+    public GameObject bulletSprite;
+
+    // Firing point sprite nın konumunu alır.
+    [SerializeField] Vector3 firingTransform;
+
+    public float fireRate; // Shot frequency (1 shot per second).
+
+    private float nextFireTime; // Next shot time.
+
+    public float bulletSpeed;
+
+    [SerializeField] Vector2 direction; // Gives the direction of the shot.
+
+    private void Update()
+    {
+        // If the button is pressed, perform the fire action.
+        if (Input.GetMouseButton(0))
+        {         
+            Fire();
+        }
+    }
+
+    public void Fire()
+    {
+        // Get the current time
+        float currentTime = Time.time;
+
+        // If current time is greater than next shot time, fire action
+        if (currentTime >= nextFireTime )
+        {
+            // Calculates bullet firingPoint.
+            calculateFiringPoint();
+            
+            // Create a new object from the bullet prefab
+            GameObject bullet = Instantiate(bulletSprite, firingTransform, Quaternion.identity);
+
+            // Add a Rigidbody2D component to the bullet object
+            Rigidbody2D rb = bullet.GetComponent<Rigidbody2D>();
+
+            // Applies a force to the projectile object
+            rb.AddForce(direction * bulletSpeed, ForceMode2D.Impulse);
+
+            // Calculate the next shot time
+            nextFireTime = currentTime + fireRate;
+        }
+    }
+    public void calculateFiringPoint()
+    {
+        characterPosition = transform.position;
+
+        mousePosition = Input.mousePosition;
+
+        firingTransform = firingPoint.transform.position;
+
+        // Convert mouse position to world coordinates
+        mousePosition = Camera.main.ScreenToWorldPoint(mousePosition);
+
+        // Subtract the character's position from the mouse's position
+        direction = mousePosition - characterPosition;
+
+        // Normalize the direction vector
+        direction.Normalize();
+    }
+
+}
