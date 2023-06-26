@@ -1,7 +1,7 @@
 using UnityEngine.Audio;
 using UnityEngine;
 
-// Used as a prefab.
+// Used as a prefab. Accessed via Audio Manager.
 
 [System.Serializable]
 public class sound
