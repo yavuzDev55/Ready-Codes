@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-
+//FindObjectOfType<AudioManager>().Play("Sound");
 //Used with "Sound" script. Sounds are controlled via a single gameobject with this code. The desired sounds are added to the list with their properties.
 //Taken from Brackeys youtube channel.
 
