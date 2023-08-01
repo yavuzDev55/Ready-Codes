@@ -1,0 +1,307 @@
+using System.Collections;
+using UnityEngine;
+
+/*/
+Includes enemy movement and melee (sword) code for a platformer game.
+If the enemy character is not in attack state, it is in patrol state.
+
+
+
+/*/
+
+public class EnemyController : MonoBehaviour
+{
+    public Animator animator;
+    public Rigidbody2D rb;
+    private SpriteRenderer sr;
+    public GameObject character;
+    public LayerMask groundLayer;
+    public LayerMask characterLayer;
+    public Transform collisionDetection;
+    public Transform groundDetection;
+    public float groundRange;
+    private bool isEmpty;
+    private Vector3 target;
+    private Vector3 currentTarget;
+    private Vector3 raycastOrigin;
+    [SerializeField] private bool isObstacle = false;
+    private bool canTurn;
+    [SerializeField] private bool dir;
+
+    [Header("Health")]
+    public int health;
+    [SerializeField] private int currentHealth;
+
+    [Header("Movement")]
+    private float mspeed;
+    public float movementSpeed;
+    public float jumpSpeed;
+
+    [Header("Attack")]
+    public float attackSpeed;
+    public float attackDuration;
+    private bool canAttack;
+    private bool isHit;
+    public int damage;
+    public Transform attackDetection;
+    public float attackRange;
+    [SerializeField] private bool isAttack;
+
+    [Header("Patrol")]
+    public float patrol;
+    [SerializeField] private bool hangOn;
+    [Range(0f, 10f)] public float maxPatrol;
+    [Range(0f, 10f)] public float minPatrol;
+    public float perceptionDistance;
+    [SerializeField] private float distance;
+    private float time1;//patrol için
+
+    public GameObject attention;//Bunu kaldır
+
+    [Header("Recoil")]
+    private bool isRecoil;
+    public float recoilForce;
+
+    private void Start()
+    {
+        rb = gameObject.GetComponent<Rigidbody2D>();
+        sr = gameObject.GetComponent<SpriteRenderer>();
+        currentHealth = health;
+        character = GameObject.Find("character");
+        patrol = Random.Range(minPatrol, maxPatrol);
+        SwitchDirection();
+        canTurn = true;
+        canAttack = true;
+    }
+
+    private void Update()
+    {
+        if (currentHealth <= 0 || isRecoil || character.GetComponent<characterHealth>().isDie && isHit) { return; }
+        attention.SetActive(isAttack);
+        AnimatorController();
+        turnControl();
+        SwitchDirection();
+
+        distance = Vector3.Distance(character.transform.position, transform.position);
+        isAttack = (distance < perceptionDistance) ? true:false;
+
+        if(isAttack)
+        {
+            if ((character.transform.position - transform.position).x < 0f && transform.localScale.x > 0) { Turn(); }
+            else if ((character.transform.position - transform.position).x > 0f && transform.localScale.x < 0) { Turn(); }
+        }
+
+    }
+
+    private void FixedUpdate()
+    {
+        if (currentHealth <= 0 || isRecoil || character.GetComponent<characterHealth>().isDie || isHit) { return; }
+        if (isAttack ) { Follow(); }
+        else if (!isAttack && !hangOn)
+        {
+            rb.velocity = new Vector2(mspeed * 100 * Time.deltaTime, rb.velocity.y);
+        }
+    }
+
+    public void TakeDamage(int damage)
+    {
+        currentHealth -= damage;
+        if (currentHealth <= 0)
+        {
+            StartCoroutine(EnemyDied());return;
+        }
+        animator.SetTrigger("Damage");
+        
+    }
+
+    public void turnControl()
+    {
+        Vector3 raycastDirection = rb.velocity.normalized;
+        raycastOrigin = collisionDetection.position;
+        int obstacleLayer = LayerMask.GetMask("Enemy", "Wall", "Ground", "Platform");
+        Debug.DrawLine(raycastOrigin, raycastOrigin + raycastDirection * 1f, Color.clear);
+        RaycastHit2D hit = Physics2D.Raycast(raycastOrigin, raycastDirection, 1f, obstacleLayer);
+        int obstacleLayer2 = LayerMask.GetMask("Ground", "Wall", "Platform");
+        Collider2D[] obstacles = Physics2D.OverlapCircleAll(groundDetection.position, groundRange, obstacleLayer2);
+        if (obstacles.Length == 0) { isEmpty = true; } else { isEmpty = false; }
+        if (hit.collider == null) { isObstacle = false; }
+        else { isObstacle = true; }
+        if ((isObstacle && canTurn && !isAttack) || (isEmpty && canTurn && !isAttack))
+        {
+            hangOn = false;
+            canTurn = false;
+            Turn();
+            StartCoroutine(delayTurnning(0.05f));
+            canTurn = true;
+        }
+        else if ((isObstacle && isAttack) || (isEmpty && isAttack))
+        {
+            hangOn = true;
+        }
+        else
+        {
+            hangOn = false;
+        }
+    }
+
+    IEnumerator delayTurnning(float time)
+    {
+        yield return new WaitForSeconds(time);
+    }
+
+    IEnumerator EnemyDied()
+    {
+        attention.SetActive(false);
+        animator.SetTrigger("death");Debug.Log("sa");
+        rb.gravityScale = 0f;
+        rb.velocity = Vector3.zero;
+        yield return new WaitForSeconds(1f);
+        animator.enabled= false;
+        rb.isKinematic = true;
+        GetComponent<Collider2D>().enabled = false;
+        yield return new WaitForSeconds(2f);
+        Color color = sr.color;
+        float colora = color.a;
+        for (int i = 0; i < 10; i++)
+        {
+            colora -= 0.1f;
+            color.a = colora;
+            sr.color = color;
+            yield return new WaitForSeconds(0.1f);
+        }
+        Destroy(gameObject);
+    }
+
+    private void SwitchDirection()
+    {
+        if (Time.time >= time1 + patrol && isAttack == false)
+        {
+            Turn();
+            time1 = Time.time;
+            patrol = Random.Range(minPatrol, maxPatrol);
+            delayTurnning(0.01f);
+        }
+    }
+
+    public void Turn()
+    {
+        if (transform.localScale.x > 0) { dir = false; }//sag
+        else if (transform.localScale.x < 0) { dir = true; }//sol
+
+        if (dir)//saga cevir
+        {
+            mspeed = 1;
+            dir = false;
+            Vector3 nScaler = transform.localScale;
+            nScaler.x = 1;
+            transform.localScale = nScaler;
+        }
+
+        else
+        {
+            mspeed = -1;
+            dir = true;
+            Vector3 nScaler = transform.localScale;
+            nScaler.x = -1;
+            transform.localScale = nScaler;
+        }
+        if (isAttack)
+        {
+            mspeed *= attackSpeed;
+        }
+        else
+        {
+            mspeed *= movementSpeed;
+        }
+    }
+
+    public void Follow()
+    {
+        if (isAttack && !isHit)
+        {
+            if (rb.velocity.x > 0.05f && dir == true)
+            {
+                Turn();
+            }
+            if (rb.velocity.x < 0.05f && dir == false)
+            {
+                Turn();
+            }
+            if (distance < 1.5f)
+            {
+                StartCoroutine(HitController());
+                return;
+
+            }
+            target = character.transform.position;
+            currentTarget = target - transform.position;
+            if (currentTarget.x > 0 && dir == true || currentTarget.x < 0 && dir == false)
+            {
+                Turn();
+            }
+            if (!hangOn)
+            {
+                rb.velocity = new Vector2(mspeed * 100 * Time.deltaTime, rb.velocity.y);
+            }
+            //else { rb.velocity = new Vector2(0f, rb.velocity.y);} Bunu açarsam durmaya çalışırken dönüyor ve animasyon çalışıyor
+
+        }
+    }
+
+    public IEnumerator HitController()
+    {
+        if (isAttack && (distance < 1.6f) && canAttack)
+        {
+            isHit= true;
+            canAttack = false;
+            yield return new WaitForSeconds(attackDuration);
+
+            animator.SetTrigger("Hit");
+            yield return new WaitForSeconds(.1f);
+            Collider2D[] hits = Physics2D.OverlapCircleAll(attackDetection.position, attackRange, characterLayer);//Hasar alanı oluşturur.
+
+            foreach (Collider2D hit in hits)
+            {
+                hit.GetComponent<characterHealth>().TakeDamage(damage);
+                Vector2 hitVector = (hit.transform.position - transform.position).normalized;
+                hit.GetComponent<PlatformerMovement>().CallRecoil();
+                hit.GetComponent<Rigidbody2D>().AddForce(hitVector * recoilForce * Time.deltaTime * 100, ForceMode2D.Impulse);
+                
+            }
+            isHit= false;
+            canAttack = true;
+        }
+    }
+
+    public IEnumerator RecoilEnemy()
+    {
+        if(currentHealth > 0)
+        {
+            isRecoil= true;
+            animator.SetTrigger("damage");
+            yield return new WaitForSeconds(.6f);
+            isRecoil= false;
+        }
+        
+    }
+
+    public void AnimatorController()
+    {
+        if(currentHealth <= 0) { return; }
+        animator.SetBool("isAttack", isAttack);
+        if (Mathf.Abs(rb.velocity.x) > 0.05f)
+        {
+            animator.SetBool("isRun", true);
+        }
+        else
+        {
+            animator.SetBool("isRun", false);
+        } 
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.DrawWireSphere(attackDetection.position, attackRange);
+        Gizmos.DrawWireSphere(groundDetection.position, groundRange);
+    }
+}
