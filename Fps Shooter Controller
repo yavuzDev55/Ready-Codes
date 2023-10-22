@@ -1,1 +1,115 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
 
+public class FPSController : MonoBehaviour
+{
+    public CharacterController cc;
+
+    [Header("Player Speeds")]
+    public float walkSpeed = 5f;
+    public float runSpeed = 10f;
+    private float movementSpeed;
+
+    [Header("Jumping")]
+    public float gravityScale;
+    public float jumpHeight = 2f;
+    public float minJumpHeight = 1f;
+    public float maxJumpHeight = 3f;
+    private float jumpStartTime;
+    [SerializeField] private bool isJump = false;
+    public float jumpTime = .3f;
+
+    [Header("Ground Controller")]
+    public Vector3 velocity;
+    [SerializeField]private bool isGrounded;
+    public Transform groundCheckTransform;
+    public float groundDistance;
+    public LayerMask groundLayerMask;
+    [SerializeField] private bool canJump = true;
+
+    [Header("Coyate Timer")]
+    public float groundedTimerDuration = 0.5f; 
+    private float groundedTimer;
+
+
+    private void Update()
+    {
+        movementSpeed = (Input.GetKey(KeyCode.LeftShift)) ? runSpeed : walkSpeed;
+
+        isGrounded = Physics.CheckSphere(groundCheckTransform.position, groundDistance, groundLayerMask);
+        CoyateTimer();
+
+        if(isGrounded && velocity.y < 0)
+        {
+            velocity.y = -2f;
+        }
+
+        if (Input.GetButtonDown("Jump") && canJump && !isJump)
+        {
+            jumpStartTime = Time.time;
+            isJump = true;
+            canJump = false;
+        }
+
+        else if (Input.GetButton("Jump") && isJump)
+        {
+            float jumpDuration = Time.time - jumpStartTime;
+            float jumpProgress = Mathf.Clamp01(jumpDuration / jumpTime); // Zıplama 1 saniyede tamamlansın (ayarlayabilirsiniz)
+
+            float jumpHeightDelta = maxJumpHeight - minJumpHeight;
+            float jumpHeightIncrement = minJumpHeight + jumpHeightDelta * jumpProgress;
+            Debug.Log(jumpProgress);
+            velocity.y = Mathf.Sqrt(jumpHeightIncrement * -2f * gravityScale);
+
+            if (jumpHeightIncrement >= maxJumpHeight)
+            {
+                isJump = false;
+            }
+        }
+
+        if (Input.GetButtonUp("Jump") || !isJump)
+        {
+            isJump = false;
+        }
+
+        float moveX = Input.GetAxis("Horizontal");
+        float moveZ = Input.GetAxis("Vertical");
+
+        Vector3 moveVector = transform.right * moveX + transform.forward * moveZ;
+
+        cc.Move(moveVector * movementSpeed * Time.deltaTime);
+
+        velocity.y += gravityScale * Time.deltaTime;
+
+        cc.Move(velocity * Time.deltaTime);
+
+    }
+
+    private void CoyateTimer()
+    {
+        if (isGrounded)
+        {
+            groundedTimer = groundedTimerDuration;
+            canJump = true;
+        }
+
+        else if (groundedTimer > 0 && !isGrounded)
+        {
+            groundedTimer -= Time.deltaTime;
+            isGrounded = true;
+        }
+
+        else
+        {
+            canJump = false;
+        }
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = isGrounded ? Color.green : Color.red;
+        Gizmos.DrawSphere(groundCheckTransform.position, groundDistance);
+    }
+
+}
